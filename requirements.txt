@@ -1,0 +1,15 @@
+fastapi[all]
+uvicorn
+pydantic[email]
+pydantic-settings
+sqlalchemy
+langchain
+langchain-community
+sentence-transformers
+qdrant-client
+langchain-groq
+openai
+streamlit
+python-multipart
+pypdf
+python-dotenv
