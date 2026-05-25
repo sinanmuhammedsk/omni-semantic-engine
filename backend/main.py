@@ -19,8 +19,11 @@ app = FastAPI(title="Enterprise RAG Pipeline")
 def startup_event():
     init_db()
 
-def process_document_task(document_id: int, file_path: str, filename: str):
-    db = next(get_db())
+# Change the function definition to accept the db session
+def process_document_task(db: Session, document_id: int, file_path: str, filename: str):
+    # DELETE or comment out this line:
+    # db = next(get_db())
+    
     doc_metadata = db.query(DocumentMetadata).filter(DocumentMetadata.id == document_id).first()
     
     if not doc_metadata:
@@ -75,10 +78,11 @@ async def upload_document(
     temp_dir = tempfile.mkdtemp()
     temp_file_path = os.path.join(temp_dir, file.filename)
     
-    with open(temp_file_path, "wb") as buffer:
+   with open(temp_file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    background_tasks.add_task(process_document_task, doc_metadata.id, temp_file_path, file.filename)
+    # Change this line to pass 'db' as the first argument:
+    background_tasks.add_task(process_document_task, db, doc_metadata.id, temp_file_path, file.filename)
 
     return doc_metadata
 
