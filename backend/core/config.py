@@ -3,7 +3,8 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # SQLite
-    DATABASE_URL: str = "sqlite:///./rag.db"
+  
+    DATABASE_URL: str = "sqlite:///:memory:"
 
     # Qdrant Local
     QDRANT_PATH: str = ":memory:"
