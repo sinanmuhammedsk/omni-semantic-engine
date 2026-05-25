@@ -1,10 +1,12 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
-import streamlit as st
 
 class Settings(BaseSettings):
-    # FORCE :memory: on Streamlit Cloud, fallback to local configuration if running on your machine
-    DATABASE_URL: str = "sqlite:///:memory:" if st.secrets.get("GROQ_API_KEY") else "sqlite:///./rag.db"
+    # SQLite
+  
+    DATABASE_URL: str = "sqlite:///:memory:"
+
+    # Qdrant Local
     QDRANT_PATH: str = ":memory:"
     QDRANT_COLLECTION_NAME: str = "documents"
 
