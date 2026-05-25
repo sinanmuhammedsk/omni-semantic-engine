@@ -1275,7 +1275,7 @@ def render_workspace_content(container, active_doc_status):
                     Enterprise <span>Semantic</span><br>Intelligence System
                 </h1>
                 <p class="omni-hero-subtitle">
-                    Automated parsing and analysis engine for CV portfolios.
+                    Automated parsing and analysis engine for PDF documents
                 </p>
                 """, unsafe_allow_html=True)
 
