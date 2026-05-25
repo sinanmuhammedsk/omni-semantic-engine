@@ -1,20 +1,11 @@
 import sys
 import os
-import streamlit as st
-from dotenv import load_dotenv
-from langchain_groq import ChatGroq
-from sqlalchemy.orm import Session
-import shutil
-import tempfile
+import subprocess
+import time
 
-# Force Python to see the root directory 
+# 1. This tells Streamlit to look at the main folder so it can find the backend folder
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Direct backend imports (Bypasses Uvicorn completely)
-from backend.db.base import get_db
-from backend.db.models import DocumentMetadata, ProcessingStatus
-from backend.services.ingestion import ingestion_service
-from backend.services.vector_db import vector_db
 # 2. START THE BACKEND SERVER VIA UVICORN EXPLICITLY
 if "backend_started" not in os.environ:
     os.environ["backend_started"] = "true"
@@ -89,89 +80,34 @@ def get_llm():
 llm = get_llm()
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 3. BACKEND HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. DIRECT BACKEND HELPERS (In-Memory Processing for Cloud Deployment)
-# ─────────────────────────────────────────────────────────────────────────────
-def upload_file(uploaded_file):
-    """Processes file directly in memory without hitting a local API port"""
-    db = next(get_db())
-    
-    # 1. Clear out old metadata & vector data
-    try:
-        db.query(DocumentMetadata).delete()
-        db.commit()
-        vector_db.clear_all()
-    except Exception as e:
-        db.rollback()
-        st.error(f"Failed to clear old records: {e}")
-        return None
-
-    # 2. Add current pending file record
-    doc_metadata = DocumentMetadata(
-        filename=uploaded_file.name,
-        status="PROCESSING"
-    )
-    db.add(doc_metadata)
-    db.commit()
-    db.refresh(doc_metadata)
-
-    # 3. Stream parse document straight to memory vectors
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-            shutil.copyfileobj(uploaded_file, temp_file)
-            temp_file_path = temp_file.name
-
-        # Call ingestion service directly
-        page_count, chunk_count = ingestion_service.process_pdf(
-            temp_file_path, uploaded_file.name, doc_metadata.id
-        )
-
-        doc_metadata.status = "COMPLETED"
-        doc_metadata.page_count = page_count
-        doc_metadata.extra_metadata = {"chunk_count": chunk_count}
-        db.commit()
-        
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
-            
-        return {
-            "id": doc_metadata.id,
-            "filename": doc_metadata.filename,
-            "status": "COMPLETED"
-        }
-    except Exception as e:
-        db.rollback()
-        doc_metadata.status = "FAILED"
-        db.commit()
-        st.error(f"Processing error: {e}")
-        return None
+def upload_file(file):
+    files = {"file": (file.name, file, "application/pdf")}
+    r = requests.post(f"{API_URL}/upload", files=files)
+    return r.json()
 
 def clear_backend_documents():
-    """Wipes session memory instantly"""
-    db = next(get_db())
     try:
-        db.query(DocumentMetadata).delete()
-        db.commit()
-        vector_db.clear_all()
-        return True
+        r = requests.delete(f"{API_URL}/documents")
+        return r.status_code == 200
     except Exception:
-        db.rollback()
         return False
 
 def get_document_status(doc_id: int):
-    """Queries the in-memory database directly for processing status"""
-    db = next(get_db())
     try:
-        match = db.query(DocumentMetadata).filter(DocumentMetadata.id == doc_id).first()
-        return match.status if match else None
+        r = requests.get(f"{API_URL}/documents")
+        if r.status_code == 200:
+            docs = r.json()
+            match = next((d for d in docs if d["id"] == doc_id), None)
+            return match["status"] if match else None
     except Exception:
         return None
 
 def query_llm_stream(prompt: str):
-    """Retrieves context directly from the in-memory Vector DB and streams LangChain response"""
     try:
-        # Search vector_db directly instead of making an HTTP requests call
-        chunks = vector_db.search(prompt, top_k=5)
+        r = requests.post(f"{API_URL}/retrieve", json={"query": prompt, "top_k": 5})
+        chunks = r.json().get("chunks", []) if r.status_code == 200 else []
     except Exception:
         chunks = []
 
@@ -197,6 +133,7 @@ def query_llm_stream(prompt: str):
     for chunk in llm.stream(full_prompt):
         if chunk.content:
             yield chunk.content
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. THEME TOKENS
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1338,7 +1275,7 @@ def render_workspace_content(container, active_doc_status):
                     Enterprise <span>Semantic</span><br>Intelligence System
                 </h1>
                 <p class="omni-hero-subtitle">
-                    Automated parsing and analysis engine for PDF documents
+                    Automated parsing and analysis engine for CV portfolios.
                 </p>
                 """, unsafe_allow_html=True)
 
