@@ -63,9 +63,13 @@ for key, val in _defaults.items():
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_resource
 def get_llm():
-    # Directly inject the live key to guarantee it is read and bypass cached variable issues
-    live_key = "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"
+    # 1. Safely pull from Streamlit Secrets first; fallback to local environment variables (.env)
+    live_key = st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY"))
     model    = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+    
+    if not live_key:
+        raise ValueError("Critical Error: GROQ_API_KEY could not be loaded from secrets or .env")
+        
     return ChatGroq(
         groq_api_key=live_key,
         model_name=model,
